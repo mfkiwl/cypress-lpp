@@ -226,7 +226,8 @@ CyU3PSpiSetConfig (
         CyU3PSpiConfig_t *config,
         CyU3PSpiIntrCb_t cb)
 {
-    uint32_t temp, timeout;
+    uint32_t timeout = CY_U3P_SPI_TIMEOUT;
+    uint32_t temp;
 
     /* Check if the SPI is initiaized */
     if (!(glIsSpiActive))
@@ -278,7 +279,6 @@ CyU3PSpiSetConfig (
         SPI->lpp_spi_config = (CY_U3P_LPP_SPI_TX_CLEAR | CY_U3P_LPP_SPI_RX_CLEAR);
 
         /* Wait until the SPI block is disabled and the RX_DATA bit is clear and TX_DONE bit is set. */
-        timeout = CY_U3P_SPI_TIMEOUT;
         while ((SPI->lpp_spi_status & CY_U3P_LPP_SPI_RX_DATA) != 0)
         {
             if (timeout-- == 0)
@@ -584,16 +584,24 @@ CyU3PSpiTransmitWords (
         }
 
         SPI->lpp_spi_egress_data = temp;
-    }
 
-    /* Wait for the transmit FIFO to become empty. */
-    while ((SPI->lpp_spi_intr & CY_U3P_LPP_SPI_TX_DONE) == 0)
-    {
-        if (timeout-- == 0)
+        /* wait for the TX_DONE */
+        while (!(SPI->lpp_spi_intr & CY_U3P_LPP_SPI_TX_DONE))
         {
-            status = CY_U3P_ERROR_TIMEOUT;
+            if (timeout-- == 0)
+            {
+                status = CY_U3P_ERROR_TIMEOUT;
+                break;
+            }
+        }
+
+        if (status != CY_U3P_SUCCESS)
+        {
             break;
         }
+
+        /* Clear the TX_DONE interrupt. */
+        SPI->lpp_spi_intr = CY_U3P_LPP_SPI_TX_DONE;
     }
 
     /* Disable the TX. */
